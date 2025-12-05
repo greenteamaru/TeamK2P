@@ -1,0 +1,109 @@
+1. USER
+플랫폼을 이용하는 사용자 엔티티.
+name(이름), email(이메일), nationality(국적), nickname(닉네임), language(언어)를 Attribute로 갖는다.
+user_id를 고유한 Key Attribute로 갖는다.
+
+2. CLUB
+사용자가 생성하거나 가입할 수 있는 동아리 엔티티.
+club_type(유형), name(이름), description(소개), created_at(생성일), status(상태), main_image_url(대표이미지), contact_info(연락처)를 Attribute로 갖는다.
+club_id를 고유한 Key Attribute로 갖는다.
+
+3. MEMBERSHIP
+USER가 CLUB에 가입한 상태를 나타내는 엔티티.
+role(역할), joined_at(가입일), left_at(탈퇴일), status(상태)를 Attribute로 갖는다.
+membership_id를 고유한 Key Attribute로 갖는다.
+MEMBERSHIP은 USER와 CLUB이 만들어내는 Weak Entity이다.
+
+4. CATEGORY
+CLUB을 분류하는 기준이 되는 카테고리 엔티티.
+name(이름), description(설명)을 Attribute로 갖는다.
+category_id를 고유한 Key Attribute로 갖는다.
+
+5. EVENT
+CLUB이 주최하는 구체적인 활동이나 모임 엔티티.
+title(제목), summary(요약), start_time 및 end_time(시간), language(언어), capacity(인원), fee(참가비), status(상태), created_at(생성일)을 Attribute로 갖는다.
+event_id를 고유한 Key Attribute로 갖는다.
+
+6. REVIEW
+USER가 EVENT나 CLUB에 대해 작성하는 후기 엔티티.
+review_id를 고유한 Key Attribute로 갖고,
+rating(평점), comment(내용), created_at(작성일)을 Attribute로 갖는다.
+REVIEW는 USER와 EVENT 또는 CLUB이 만들어내는 Weak Entity이다.
+
+7. REGISTRATION
+USER가 EVENT에 참여 신청한 내역을 나타내는 엔티티.
+registration_id를 고유한 Key Attribute로 갖고,
+registered_at(신청일), status(상태), attended(참석여부)를 Attribute로 갖는다.
+REGISTRATION은 USER와 EVENT가 만들어내는 Weak Entity이다.
+
+8. VENUE
+EVENT가 열리는 장소 정보를 담는 엔티티.
+name(이름), campus(캠퍼스), building(건물), room(상세위치), map_url(지도링크)을 Attribute로 갖는다.
+venue_id를 고유한 Key Attribute로 갖는다.
+
+[ Relation ]
+1. CREATE (USER - CLUB)
+USER가 CLUB을 생성하는 관계를 나타낸다.
+CLUB은 반드시 생성한 USER가 있어야 하므로 Total Participant이다.
+반대로, USER는 CLUB을 생성하지 않을 수도 있으므로 Total Participant가 아니다.
+한 명의 USER는 여러 CLUB을 생성할 수 있으므로 1 대 N 관계이다.
+
+2. BELONG TO (CLUB - CATEGORY)
+CLUB이 특정 CATEGORY에 소속되는 관계를 나타낸다.
+모든 CLUB은 하나의 CATEGORY에 반드시 속해야 하므로 Total Participant이다.
+반대로, CATEGORY에 속한 CLUB이 하나도 없을 수 있으므로 Total Participant가 아니다.
+하나의 CATEGORY는 여러 CLUB을 가질 수 있으므로 1 대 N 관계이다.
+
+3. HOST (CLUB - EVENT)
+CLUB이 EVENT를 주최하는 관계를 나타낸다.
+모든 EVENT는 주최하는 CLUB이 반드시 있어야 하므로 Total Participant이다.
+반대로, CLUB은 EVENT를 주최하지 않을 수도 있으므로 Total Participant가 아니다.
+하나의 CLUB은 여러 EVENT를 주최할 수 있으므로 1 대 N 관계이다.
+
+4. IS HELD AT (EVENT - VENUE)
+EVENT가 특정 VENUE에서 개최되는 관계를 나타낸다.
+모든 EVENT는 개최되는 장소 VENUE가 있어야 하므로 Total Participant이다.
+반대로, 특정 VENUE에서 EVENT가 열리지 않을 수도 있으므로 Total Participant가 아니다.
+하나의 VENUE에서 여러 EVENT가 열릴 수 있으므로 1 대 N 관계이다.
+
+5. MEMBERSHIP 관계
+
+5.1 HAS (USER - MEMBERSHIP)
+한 명의 USER가 여러 CLUB에 가입하여 여러 MEMBERSHIP 기록을 갖는 관계를 나타낸다.
+MEMBERSHIP은 반드시 소속될 USER가 있어야 하므로 Total Participant이다.
+반대로, USER는 MEMBERSHIP이 없을 수 있으므로 Total Participant가 아니다.
+관계는 1(USER) 대 N(MEMBERSHIP)이다.
+
+5.2 HAS (CLUB - MEMBERSHIP)
+하나의 CLUB이 여러 USER를 회원으로 받아 여러 MEMBERSHIP 기록을 갖는 관계를 나타낸다.
+MEMBERSHIP은 반드시 대상 CLUB이 있어야 하므로 Total Participant이다.
+반대로, CLUB은 회원이 한 명도 없을 수 있으므로 Total Participant가 아니다.
+관계는 1(CLUB) 대 N(MEMBERSHIP)이다.
+
+6. REGISTRATION 관계
+
+6.1 APPLY FOR (USER - REGISTRATION)
+한 명의 USER가 여러 EVENT에 신청하여 여러 REGISTRATION 기록을 갖는 관계를 나타낸다.
+REGISTRATION은 반드시 신청한 USER가 있어야 하므로 Total Participant이다.
+반대로, USER는 REGISTRATION이 없을 수 있으므로 Total Participant가 아니다.
+관계는 1(USER) 대 N(REGISTRATION)이다.
+
+6.2 RECEIVE (EVENT - REGISTRATION)
+하나의 EVENT가 여러 USER로부터 신청을 받아 여러 REGISTRATION 기록을 갖는 관계를 나타낸다.
+REGISTRATION은 반드시 대상 EVENT가 있어야 하므로 Total Participant이다.
+반대로, EVENT는 신청자가 한 명도 없을 수 있으므로 Total Participant가 아니다.
+관계는 1(EVENT) 대 N(REGISTRATION)이다.
+
+7. REVIEW 관계
+
+7.1 WRITE (USER - REVIEW)
+한 명의 USER가 여러 REVIEW를 작성하는 관계를 나타낸다.
+REVIEW는 반드시 작성자 USER가 있어야 하므로 Total Participant이다.
+반대로, USER는 REVIEW를 작성하지 않을 수 있으므로 Total Participant가 아니다.
+관계는 1(USER) 대 N(REVIEW)이다.
+
+7.2 IS ABOUT (REVIEW - EVENT)
+REVIEW가 특정 EVENT에 대해 작성되는 관계를 나타낸다.
+REVIEW는 반드시 평가할 대상 EVENT가 있어야 하므로 Total Participant이다.
+반대로, EVENT는 REVIEW가 하나도 없을 수 있으므로 Total Participant가 아니다.
+관계는 1(EVENT) 대 N(REVIEW)이다.

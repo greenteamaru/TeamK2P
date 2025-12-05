@@ -1,0 +1,94 @@
+[Team K²P] ER → Relational Mapping 설명서
+
+------------------------------------------------------------
+0) 개요
+· DBMS: Oracle
+· 물리 스키마 테이블: users, categories, venues, clubs, events, memberships, registrations, reviews
+· 본 문서는 ER 스키마를 관계형 스키마로 매핑한 근거를 관계(relationship) 순서로 설명한다.
+· 표기: Total 참여(필수) / Partial 참여(선택), 1:N 등 카디널리티를 함께 명시.
+
+------------------------------------------------------------
+1) 엔티티(Entity) → 테이블(Table)
+· USERS → users(user_id PK, name, email UNIQUE, nationality, nickname, language, created_at DEFAULT SYSDATE NOT NULL)
+· CATEGORIES → categories(category_id PK, name UNIQUE, description)
+VENUES → venues(venue_id PK, name, campus, building, room, map_url)
+· CLUBS → clubs(club_id PK, name, club_type, description, created_at, status, main_image_url, contact_info, creator_user_id FK, category_id FK)
+· EVENTS → events(event_id PK, club_id FK, venue_id FK, title, summary, start_time, end_time, language, capacity, fee, status, created_at)
+· MEMBERSHIP(교차/약 엔티티) → memberships(membership_id PK, user_id FK, club_id FK, role, joined_at, left_at, status, UNIQUE(user_id,club_id))
+· REGISTRATION(교차/약 엔티티) → registrations(registration_id PK, user_id FK, event_id FK, registered_at, status, attended, UNIQUE(user_id,event_id))
+· REVIEW(약 엔티티) → reviews(review_id PK, user_id FK, event_id FK, rating, review_text, created_at, status)
+
+------------------------------------------------------------
+2) 관계(relationship)별 매핑 (관계 순서 + 참여/카디널리티)
+2.1 CREATE (USER — CLUB) : 1:N, CLUB=Total, USER=Partial
+→ clubs.creator_user_id → users.user_id (NOT NULL FK).
+→ 모든 클럽은 반드시 생성자 1명 보유.
+
+2.2 BELONG TO (CLUB — CATEGORY) : N:1, CLUB=Total, CATEGORY=Partial
+→ clubs.category_id → categories.category_id (NOT NULL FK).
+→ 모든 클럽은 정확히 한 카테고리 소속.
+
+2.3 HOST (CLUB — EVENT) : 1:N, EVENT=Total, CLUB=Partial
+→ events.club_id → clubs.club_id (NOT NULL FK).
+→ 모든 이벤트는 반드시 하나의 클럽이 주최.
+
+2.4 IS HELD AT (VENUE — EVENT) : 1:N, EVENT=Total, VENUE=Partial
+→ events.venue_id → venues.venue_id (NOT NULL FK).
+→ 모든 이벤트는 반드시 하나의 장소에서 개최.
+
+2.5 HAS (USER — MEMBERSHIP) : 1:N, MEMBERSHIP=Total, USER=Partial
+→ memberships.user_id → users.user_id (NOT NULL FK).
+→ 멤버십은 반드시 사용자에 귀속.
+
+2.6 HAS (CLUB — MEMBERSHIP) : 1:N, MEMBERSHIP=Total, CLUB=Partial
+→ memberships.club_id → clubs.club_id (NOT NULL FK),
+→ UNIQUE(user_id, club_id)로 동일 사용자-클럽 중복 멤버십 방지.
+
+2.7 APPLY FOR (USER — REGISTRATION) : 1:N, REGISTRATION=Total, USER=Partial
+→ registrations.user_id → users.user_id (NOT NULL FK).
+→ 등록은 반드시 사용자에 귀속.
+
+2.8 RECEIVE (EVENT — REGISTRATION) : 1:N, REGISTRATION=Total, EVENT=Partial
+→ registrations.event_id → events.event_id (NOT NULL FK),
+→ UNIQUE(user_id, event_id)로 동일 이벤트 중복 등록 방지.
+
+2.9 WRITE (USER — REVIEW) : 1:N, REVIEW=Total, USER=Partial
+→ reviews.user_id → users.user_id (NOT NULL FK).
+→ 모든 리뷰는 작성자 1명.
+
+2.10 IS ABOUT (REVIEW — EVENT) : N:1, REVIEW=Total, EVENT=Partial
+→ reviews.event_id → events.event_id (NOT NULL FK).
+→ 리뷰는 이벤트 전용. 동일 (user,event) 조합에서 여러 리뷰 허용(UNIQUE 미적용).
+
+------------------------------------------------------------
+3) 복합/파생 속성 처리
+· EVENT의 datetime(복합속성) = {start_time, end_time}
+→ 관계형 스키마에서는 두 컬럼으로 분해 저장.
+→ 무결성: CHECK (end_time > start_time)로 시간 일관성 보장.
+
+------------------------------------------------------------
+4) 무결성/도메인 제약(요약)
+
+· Key/Unique:
+  users.email UNIQUE, categories.name UNIQUE,
+  memberships UNIQUE(user_id,club_id), registrations UNIQUE(user_id,event_id)
+
+· 상태·수치 제약(DDL CHECK로 구현):
+  clubs.status ∈ {ACTIVE, INACTIVE, ARCHIVED}
+  events.status ∈ {SCHEDULED, CANCELLED, COMPLETED, POSTPONED}
+  events.capacity ≥ 0, events.fee ≥ 0, events.end_time > events.start_time
+  registrations.attended ∈ {'Y','N'}, registrations.status ∈ {PENDING, CONFIRMED, CANCELLED, WAITLISTED}
+  reviews.rating ∈ [1..5], reviews.status ∈ {VISIBLE, HIDDEN, FLAGGED}
+
+------------------------------------------------------------
+5) 인덱스(주요)
+· FK 탐색:
+  clubs(creator_user_id, category_id),
+  events(club_id, venue_id), events(start_time),
+  memberships(user_id, club_id),
+  registrations(user_id, event_id),
+  reviews(event_id)
+
+· 목적: 조인/시계열 질의 성능 향상.
+
+------------------------------------------------------------
