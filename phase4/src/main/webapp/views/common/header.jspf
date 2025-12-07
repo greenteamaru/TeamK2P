@@ -2,7 +2,7 @@
 <%@ page import="teamk2p.db.UserDao.LoginUser" %>
 
 <%
-    // JSP 내장 객체 session 사용 (타입 명시 필요 X)
+    // 세션에서 로그인 사용자 정보 가져오기
     LoginUser loginUser = (LoginUser) session.getAttribute("loginUser");
 %>
 
@@ -39,56 +39,71 @@
             <!-- 우측 사용자 영역 -->
             <ul class="navbar-nav ms-auto">
                 <% if (loginUser != null) { %>
-                <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="#" id="userDropdown"
-                       role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        <%= loginUser.getName() %> (<%= loginUser.getEmail() %>)
-                    </a>
-                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
-                        <li>
-                            <a class="dropdown-item" href="<%= request.getContextPath() %>/me/profile">
-                                프로필 / 설정
-                            </a>
-                        </li>
-                        <li>
-                            <a class="dropdown-item" href="<%= request.getContextPath() %>/me/events">
-                                내 이벤트
-                            </a>
-                        </li>
-                        <li>
-                            <a class="dropdown-item" href="<%= request.getContextPath() %>/me/clubs">
-                                내 클럽
-                            </a>
-                        </li>
-                        <li>
-                        	<a class="dropdown-item" href="<%= request.getContextPath() %>/me/reviews">
-                        		내 리뷰
-                        	</a>
-                        </li>
-                        
-                        <% if (loginUser.isAdmin()) { %>
-                        <li><hr class="dropdown-divider"></li>
-                        <li>
-                            <a class="dropdown-item" href="<%= request.getContextPath() %>/admin/users">
-                                관리자: 회원 관리
-                            </a>
-                        </li>
-                        <% } %>
-                        
-                        <li><hr class="dropdown-divider"></li>
-                        <li>
-                            <a class="dropdown-item" href="<%= request.getContextPath() %>/logout">
-                                로그아웃
-                            </a>
-                        </li>
-                    </ul>
-                </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown"
+                           role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <%= loginUser.getName() %> (<%= loginUser.getEmail() %>)
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                            <li>
+                                <a class="dropdown-item" href="<%= request.getContextPath() %>/me/profile">
+                                    프로필 / 설정
+                                </a>
+                            </li>
+                            <li>
+							    <a class="dropdown-item" href="<%= request.getContextPath() %>/me/password">
+							        비밀번호 변경
+							    </a>
+							</li>
+                            <li>
+                                <a class="dropdown-item" href="<%= request.getContextPath() %>/me/events">
+                                    내 이벤트
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="<%= request.getContextPath() %>/me/clubs">
+                                    내 클럽
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="<%= request.getContextPath() %>/me/reviews">
+                                    내 리뷰
+                                </a>
+                            </li>
+
+                            <%-- 관리자일 때만 관리자 메뉴 노출 --%>
+                            <% if (loginUser.isAdmin()) { %>
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <a class="dropdown-item" href="<%= request.getContextPath() %>/admin/users">
+                                        관리자: 회원 관리
+                                    </a>
+                                </li>
+                            <% } %>
+							<li>
+                            <a class="dropdown-item text-danger" href="<%= request.getContextPath() %>/me/delete">
+                                	회원 탈퇴
+                           		</a>
+                     	   	</li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item" href="<%= request.getContextPath() %>/logout">
+                                    로그아웃
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
                 <% } else { %>
-                <li class="nav-item">
-                    <a class="nav-link" href="<%= request.getContextPath() %>/login">
-                        로그인
-                    </a>
-                </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="<%= request.getContextPath() %>/login">
+                            로그인
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="<%= request.getContextPath() %>/signup">
+                            회원가입
+                        </a>
+                    </li>
                 <% } %>
             </ul>
         </div>

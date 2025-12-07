@@ -240,4 +240,77 @@ public class UserDao {
         return list;
     }
 
+    public void createUser(Connection conn,
+            String email,
+            String password,
+            String name) throws SQLException {
+
+		// 이미 존재하는 이메일인지 간단 체크 (중복 방지용)
+		String checkSql = "SELECT COUNT(*) FROM users WHERE email = ?";
+		try (PreparedStatement ps = conn.prepareStatement(checkSql)) {
+		ps.setString(1, email);
+		try (ResultSet rs = ps.executeQuery()) {
+		 if (rs.next() && rs.getInt(1) > 0) {
+		     throw new SQLException("DUP_EMAIL");
+			 }
+		}
+	}
+		
+		String sql =
+		"INSERT INTO users (email, password, name, nickname, nationality, language, created_at, is_admin) " +
+		"VALUES (?, ?, ?, ?, ?, ?, SYSDATE, 'N')";
+		
+		try (PreparedStatement ps = conn.prepareStatement(sql)) {
+		ps.setString(1, email);
+		ps.setString(2, password);
+		ps.setString(3, name);
+		ps.setString(4, name);       // nickname = name
+		ps.setString(5, "Korea");    // nationality 기본값
+		ps.setString(6, "ko");       // language 기본값
+		ps.executeUpdate();
+		}
+	}
+    
+    // 현재 비밀번호가 맞는지 확인
+    public boolean checkPassword(Connection conn, int userId, String currentPassword) throws SQLException {
+        String sql =
+            "SELECT COUNT(*) " +
+            "FROM users " +
+            "WHERE user_id = ? " +
+            "  AND password = ?";
+
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, userId);
+            ps.setString(2, currentPassword);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getInt(1) > 0;
+            }
+        }
+    }
+
+    // Q5-CHANGE_PASSWORD: 비밀번호 변경
+    public void changePassword(Connection conn, int userId, String newPassword) throws SQLException {
+        String sql =
+            "UPDATE users " +
+            "SET password = ? " +
+            "WHERE user_id = ?";
+
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, newPassword);
+            ps.setInt(2, userId);
+            ps.executeUpdate();
+        }
+    }
+    
+    // DELETE_USER
+    public int deleteUser(Connection conn, int userId) throws SQLException {
+        String sql = "DELETE FROM users WHERE user_id = ?";
+
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, userId);
+            return ps.executeUpdate();
+        }
+    }
 }
