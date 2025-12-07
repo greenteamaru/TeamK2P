@@ -2,7 +2,7 @@ package teamk2p.web;
 
 import teamk2p.db.DBUtil;
 import teamk2p.db.EventDao;
-import teamk2p.db.EventDao.EventDetail;
+import teamk2p.db.EventDao.MyEventItem;
 import teamk2p.db.UserDao.LoginUser;
 
 import jakarta.servlet.ServletException;
@@ -15,9 +15,10 @@ import jakarta.servlet.RequestDispatcher;
 
 import java.io.IOException;
 import java.sql.Connection;
+import java.util.List;
 
-@WebServlet("/events/detail")
-public class EventDetailServlet extends HttpServlet {
+@WebServlet("/my/events")
+public class MyEventsServlet extends HttpServlet {
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -25,51 +26,45 @@ public class EventDetailServlet extends HttpServlet {
 
         String ctx = req.getContextPath();
 
-        // (선택) 로그인 체크: 상세는 로그인 필수라면 유지
+        // 1) 로그인 사용자 확인
         HttpSession session = req.getSession(false);
         LoginUser loginUser = (session == null)
                 ? null
                 : (LoginUser) session.getAttribute("loginUser");
+
         if (loginUser == null) {
             resp.sendRedirect(ctx + "/login");
             return;
         }
 
-        // 1) event_id 파라미터 읽기
-        String eventIdParam = req.getParameter("event_id");
-        if (eventIdParam == null || eventIdParam.isBlank()) {
-            resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "event id is required");
-            return;
-        }
-
-        int eventId;
+        Connection conn = null;
         try {
-            eventId = Integer.parseInt(eventIdParam);
-        } catch (NumberFormatException e) {
-            resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "invalid event id");
-            return;
-        }
-
-        try (Connection conn = DBUtil.getConnection()) {
+            conn = DBUtil.getConnection();
             EventDao dao = new EventDao();
-            EventDetail detail = dao.getEventDetail(conn, eventId);
+
+            List<MyEventItem> list = dao.listMyEvents(conn, loginUser.getUserId());
             conn.commit();
 
-            if (detail == null) {
-                resp.sendError(HttpServletResponse.SC_NOT_FOUND, "event not found");
-                return;
+            req.setAttribute("events", list);
+
+            // 취소 결과 코드가 있으면 JSP로 넘김
+            String cancelResult = req.getParameter("cancelResult");
+            if (cancelResult != null && !cancelResult.isEmpty()) {
+                req.setAttribute("cancelResult", cancelResult);
             }
 
-            req.setAttribute("detail", detail);
-
             RequestDispatcher rd =
-                    req.getRequestDispatcher("/views/event_detail.jsp");
+                    req.getRequestDispatcher("/views/my_events.jsp");
             rd.forward(req, resp);
 
         } catch (Exception e) {
             e.printStackTrace();
+            if (conn != null) try { conn.rollback(); } catch (Exception ignore) {}
+
             resp.setContentType("text/plain; charset=UTF-8");
             resp.getWriter().println("Error: " + e.getMessage());
+        } finally {
+            if (conn != null) try { conn.close(); } catch (Exception ignore) {}
         }
     }
 }

@@ -1,5 +1,7 @@
 <%@ page contentType="text/html; charset=UTF-8" language="java" %>
 <%@ page import="teamk2p.db.EventDao.EventDetail" %>
+<%@ page import="teamk2p.db.UserDao.LoginUser" %>
+
 
 <%
     // 1) 컨트롤러가 넘겨준 이벤트 상세 객체
@@ -19,6 +21,7 @@
 
     // 2) 신청 결과 코드 (등록 서블릿에서 세팅)
     String regResult = (String) request.getAttribute("regResult");
+    LoginUser loginUser = (LoginUser) session.getAttribute("loginUser");
 %>
 
 <html>
@@ -101,31 +104,40 @@
                 <%= ev.getDescription() %>
             </p>
 
-            <%-- 5) 참가 신청 폼 (원하면 나중에 활성화) --%>
-            <form action="<%= request.getContextPath() %>/events/register"
-                  method="post"
-                  class="mt-3 border-top pt-3">
-
-                <input type="hidden" name="event_id" value="<%= ev.getEventId() %>">
-
-                <div class="mb-2">
-                    <label class="form-label form-label-sm">사용자 ID</label>
-                    <input type="number" name="user_id"
-                           class="form-control form-control-sm"
-                           placeholder="예: 100" required>
-                    <div class="form-text">
-                        테스트용으로 users 테이블에 있는 user_id 입력.
-                    </div>
-                </div>
-
-                <button type="submit" class="btn btn-success btn-sm">
-                    참가 신청
-                </button>
-            </form>
-
+            <%-- 5) 참가 신청 폼  --%>
+			<form action="<%= request.getContextPath() %>/events/register"
+			      method="post"
+			      class="mt-3 border-top pt-3">
+			
+			    <%-- ✅ 이제는 event_id만 넘기면 됨. user_id는 세션에서 가져감 --%>
+			    <input type="hidden" name="event_id" value="<%= ev.getEventId() %>">
+			
+			    <%-- (선택) 현재 로그인 사용자 정보 표시만 해주기 --%>
+			    <%
+			        if (loginUser != null) {
+			    %>
+			        <p class="mb-2 small text-muted">
+			            현재 로그인: <strong><%= loginUser.getName() %></strong>
+			            (&lt;<%= loginUser.getEmail() %>&gt;)
+			        </p>
+			    <%
+			        }
+			    %>
+			
+			    <button type="submit"
+			            class="btn btn-success btn-sm"
+			            <%= remaining <= 0 ? "disabled" : "" %>>
+			        참가 신청
+			    </button>
+			
+			    <% if (remaining <= 0) { %>
+			        <p class="text-danger small mt-2">
+			            정원이 가득 찼습니다. 더 이상 신청할 수 없습니다.
+			        </p>
+			    <% } %>
+			</form>
         </div>
     </div>
-
 </div>
 </body>
 </html>

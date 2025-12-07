@@ -1,0 +1,39 @@
+<%@ page contentType="text/html; charset=UTF-8" %>
+<%@ page import="teamk2p.db.UserDao.LoginUser" %>
+<%
+    LoginUser loginUser = (LoginUser) session.getAttribute("loginUser");
+%>
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+    <div class="container">
+        <a class="navbar-brand" href="<%= request.getContextPath() %>/">
+            Team K²P · Club Events
+        </a>
+
+        ...
+
+        <ul class="navbar-nav ms-auto">
+            <% if (loginUser != null) { %>
+            <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" href="#" id="userDropdown"
+                   role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <%= loginUser.getName() %> (<%= loginUser.getEmail() %>)
+                </a>
+                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                    <li><a class="dropdown-item" href="<%= request.getContextPath() %>/me/profile">프로필 / 설정</a></li>
+                    <li><a class="dropdown-item" href="<%= request.getContextPath() %>/me/events">내 이벤트</a></li>
+                    <li><a class="dropdown-item" href="<%= request.getContextPath() %>/me/clubs">내 클럽</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="<%= request.getContextPath() %>/logout">로그아웃</a></li>
+                </ul>
+            </li>
+            <% } else { %>
+            <li class="nav-item">
+                <a class="nav-link" href="<%= request.getContextPath() %>/login">로그인</a>
+            </li>
+            <% } %>
+        </ul>
+        
+        
+    </div>
+</nav>

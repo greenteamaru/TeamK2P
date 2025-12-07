@@ -3,12 +3,14 @@ package teamk2p.web;
 import teamk2p.db.DBUtil;
 import teamk2p.db.EventDao;
 import teamk2p.db.EventDao.EventDetail;
+import teamk2p.db.UserDao.LoginUser;      // ✅ 로그인 유저 DTO
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;  // ✅ 세션
 import jakarta.servlet.RequestDispatcher;
 
 import java.io.IOException;
@@ -23,18 +25,25 @@ public class EventRegisterServlet extends HttpServlet {
 
         req.setCharacterEncoding("UTF-8");
 
-        String userIdParam  = req.getParameter("user_id");
-        String eventIdParam = req.getParameter("event_id");
+        // ✅ 1) 로그인 여부 확인 + userId 얻기
+        HttpSession session = req.getSession(false);
+        LoginUser loginUser =
+                (session == null) ? null : (LoginUser) session.getAttribute("loginUser");
+        if (loginUser == null) {
+            resp.sendRedirect(req.getContextPath() + "/login");
+            return;
+        }
+        int userId = loginUser.getUserId();   // ← 여기서 user_id 확보
 
-        if (userIdParam == null || eventIdParam == null) {
-            resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "user_id와 event_id가 필요합니다.");
+        // ✅ 2) event_id 는 폼에서 넘어온 값 사용
+        String eventIdParam = req.getParameter("event_id");
+        if (eventIdParam == null) {
+            resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "event_id가 필요합니다.");
             return;
         }
 
-        int userId;
         int eventId;
         try {
-            userId  = Integer.parseInt(userIdParam);
             eventId = Integer.parseInt(eventIdParam);
         } catch (NumberFormatException e) {
             resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "ID 형식이 잘못되었습니다.");
@@ -46,10 +55,10 @@ public class EventRegisterServlet extends HttpServlet {
             conn = DBUtil.getConnection();
             EventDao dao = new EventDao();
 
-            // 1) 신청 시도
+            // 3) 신청 시도 (userId 는 세션에서 온 값)
             String result = dao.registerForEvent(conn, userId, eventId);
 
-            // 2) 최신 상세 정보 다시 조회 (같은 트랜잭션 안에서)
+            // 4) 최신 상세 정보 다시 조회
             EventDetail detail = dao.getEventDetail(conn, eventId);
 
             conn.commit();
