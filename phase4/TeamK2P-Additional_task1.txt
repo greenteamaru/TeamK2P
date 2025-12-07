@@ -1,0 +1,68 @@
+[Team K²P] Additional Task 1 – 이벤트 신청 동시성 제어 구현
+========================================================
+
+1. 개요
+-------
+
+과제 요구 사항:
+
+- 여러 명의 사용자가 동시에 접속하더라도
+  데이터베이스의 일관성, 무결성이 깨지지 않도록
+  트랜잭션을 이용해 동시성 제어를 구현할 것.
+- 특히, 이벤트 정원(capacity)을 초과하는 “과다 신청(overbooking)”이
+  발생하지 않도록 해야 함.
+
+본 프로젝트에서는 “이벤트 참가 신청” 기능에 대해
+트랜잭션 + 행 잠금(SELECT … FOR UPDATE)을 이용하여
+동시성 제어를 구현하였다.
+
+
+2. 대상 시나리오
+----------------
+
+대상 시나리오:
+
+- 여러 사용자가 동시에 같은 이벤트에 신청 버튼을 누르는 상황
+  (예: 정원이 1명인 이벤트에 두 사람이 동시에 신청)
+
+비즈니스 규칙:
+
+- 각 이벤트는 events.capacity 로 정원이 정해져 있다.
+- registrations 테이블에 실제 신청 내역이 저장된다.
+- status 가 'PENDING', 'CONFIRMED' 인 행만 정원에 포함된다.
+- 한 사용자는 동일한 이벤트에 한 번만 신청 가능하다.
+  (UNIQUE(user_id, event_id) 제약)
+
+
+3. 구현 위치
+------------
+
+- DAO 클래스: `teamk2p.db.EventDao`
+  - 메서드: `String registerForEvent(Connection conn, int userId, int eventId)`
+
+- 서블릿: `teamk2p.web.EventRegisterServlet`
+  - URL 매핑: `/events/register`
+  - 폼 액션: `event_detail.jsp`에서 POST로 `/events/register` 호출
+
+데이터베이스:
+
+- 테이블: EVENTS(event_id, capacity, ...)
+- 테이블: REGISTRATIONS(registration_id, user_id, event_id, status, attended, ...)
+- 제약조건: UNIQUE(user_id, event_id)  (동일 유저의 중복 신청 방지)
+- 동시성 제어: Oracle의 트랜잭션 + 행 잠금 사용
+
+
+4. 상세 로직 (EventDao.registerForEvent)
+----------------------------------------
+
+(1) 이벤트 행 잠금 + 현재 신청 인원 조회
+
+```sql
+SELECT e.capacity,
+       (SELECT COUNT(*)
+          FROM registrations r
+         WHERE r.event_id = e.event_id
+           AND r.status IN ('PENDING', 'CONFIRMED')) AS current_cnt
+FROM events e
+WHERE e.event_id = ?
+FOR UPDATE;
