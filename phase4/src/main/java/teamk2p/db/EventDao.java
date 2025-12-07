@@ -4,13 +4,12 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.math.BigDecimal;
-import java.sql.Timestamp;
 
 public class EventDao {
 
-    // ==========================
+    // =============================
     // 1. 내 이벤트 목록용 DTO
-    // ==========================
+    // =============================
     public static class MyEventItem {
         private int eventId;
         private String title;
@@ -38,7 +37,6 @@ public class EventDao {
         public void setAttended(String attended) { this.attended = attended; }
     }
 
-    // 내 이벤트 목록 조회
     public List<MyEventItem> listMyEvents(Connection conn, int userId) throws SQLException {
         String sql =
             "SELECT r.event_id, e.title, e.start_time, v.name AS venue_name, " +
@@ -70,9 +68,9 @@ public class EventDao {
         return list;
     }
 
-    // ==========================
-    // 2. 이벤트 신청
-    // ==========================
+    // =============================
+    // 2. 이벤트 신청 (정원 체크 + 동시성)
+    // =============================
     public String registerForEvent(Connection conn, int userId, int eventId) throws SQLException {
         // 결과 코드: OK, FULL, DUP, NO_EVENT
         String checkSql =
@@ -99,7 +97,6 @@ public class EventDao {
             }
         }
 
-        // 정원 초과
         if (current >= capacity) {
             return "FULL";
         }
@@ -118,25 +115,29 @@ public class EventDao {
             if (e.getErrorCode() == 1) {
                 return "DUP";
             }
-            throw e; // 다른 에러는 위로 던짐
+            throw e;
         }
     }
 
-    // ==========================
-    // 3. 이벤트 상세 보기용 DTO + 조회
-    // ==========================
+    // =============================
+    // 3. 이벤트 상세 DTO
+    // =============================
     public static class EventDetail {
         private int eventId;
         private String title;
         private String description;
         private String clubName;
         private String venueName;
-        private java.sql.Timestamp startTime;
-        private java.sql.Timestamp endTime;
+        private Timestamp startTime;
+        private Timestamp endTime;
         private int capacity;
         private int currentRegistrations;
         private BigDecimal fee;
         private String status;
+        
+        // 리뷰,평점 정보
+        private Double avgRating;   // null 이면 아직 리뷰 없음
+        private int reviewCount;
 
         public int getEventId() { return eventId; }
         public void setEventId(int eventId) { this.eventId = eventId; }
@@ -153,11 +154,11 @@ public class EventDao {
         public String getVenueName() { return venueName; }
         public void setVenueName(String venueName) { this.venueName = venueName; }
 
-        public java.sql.Timestamp getStartTime() { return startTime; }
-        public void setStartTime(java.sql.Timestamp startTime) { this.startTime = startTime; }
+        public Timestamp getStartTime() { return startTime; }
+        public void setStartTime(Timestamp startTime) { this.startTime = startTime; }
 
-        public java.sql.Timestamp getEndTime() { return endTime; }
-        public void setEndTime(java.sql.Timestamp endTime) { this.endTime = endTime; }
+        public Timestamp getEndTime() { return endTime; }
+        public void setEndTime(Timestamp endTime) { this.endTime = endTime; }
 
         public int getCapacity() { return capacity; }
         public void setCapacity(int capacity) { this.capacity = capacity; }
@@ -170,58 +171,28 @@ public class EventDao {
 
         public String getStatus() { return status; }
         public void setStatus(String status) { this.status = status; }
+        
+        // 평점, 리뷰
+        public Double getAvgRating() { return avgRating; }
+        public void setAvgRating(Double avgRating) { this.avgRating = avgRating; }
+
+        public int getReviewCount() { return reviewCount; }
+        public void setReviewCount(int reviewCount) { this.reviewCount = reviewCount; }
     }
+    
+    
 
-    public EventDetail getEventDetail(Connection conn, int eventId) throws SQLException {
-        String sql =
-            "SELECT e.event_id, e.title, e.summary as description, e.start_time, e.end_time, " +
-            "       e.capacity, e.fee, e.status, " +
-            "       c.name AS club_name, v.name AS venue_name, " +
-            "       (SELECT COUNT(*) FROM registrations r " +
-            "         WHERE r.event_id = e.event_id " +
-            "           AND r.status IN ('PENDING','CONFIRMED')) AS current_registrations " +
-            "FROM events e " +
-            "JOIN clubs c ON e.club_id = c.club_id " +
-            "JOIN venues v ON e.venue_id = v.venue_id " +
-            "WHERE e.event_id = ?";
-
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, eventId);
-
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    EventDetail d = new EventDetail();
-                    d.setEventId(rs.getInt("event_id"));
-                    d.setTitle(rs.getString("title"));
-                    d.setDescription(rs.getString("description"));
-                    d.setStartTime(rs.getTimestamp("start_time"));
-                    d.setEndTime(rs.getTimestamp("end_time"));
-                    d.setCapacity(rs.getInt("capacity"));
-                    d.setFee(rs.getBigDecimal("fee"));
-                    d.setStatus(rs.getString("status"));
-                    d.setClubName(rs.getString("club_name"));
-                    d.setVenueName(rs.getString("venue_name"));
-                    d.setCurrentRegistrations(rs.getInt("current_registrations"));
-                    return d;
-                } else {
-                    return null;
-                }
-            }
-        }
-    }
-
-    // ==========================
-    // 4. 목록 화면용 DTO
-    // ==========================
+    // =============================
+    // 4. 이벤트 목록용 DTO (카드용)
+    // =============================
     public static class EventListItem {
         private int eventId;
         private String title;
         private String clubName;
         private String venueName;
         private Timestamp startTime;
-        
-        private int capacity;              // 정원
-        private int currentRegistrations;  // 현재 신청 인원
+        private int capacity;
+        private int currentRegistrations;
 
         public int getEventId() { return eventId; }
         public void setEventId(int eventId) { this.eventId = eventId; }
@@ -245,58 +216,27 @@ public class EventDao {
         public void setCurrentRegistrations(int currentRegistrations) { this.currentRegistrations = currentRegistrations; }
     }
 
- // 향후 7일 내 이벤트 목록
+    // =============================
+    // 5. 향후 7일 내 이벤트 목록
+    // =============================
     public List<EventListItem> listUpcomingEvents(Connection conn) throws SQLException {
         String sql =
             "SELECT e.event_id, e.title, c.name AS club_name, v.name AS venue_name, " +
             "       e.start_time, e.capacity, " +
-            "       (SELECT COUNT(*) " +
-            "          FROM registrations r " +
+            "       (SELECT COUNT(*) FROM registrations r " +
             "         WHERE r.event_id = e.event_id " +
             "           AND r.status IN ('PENDING','CONFIRMED')) AS current_registrations " +
-            "FROM events e, clubs c, venues v " +
-            "WHERE e.club_id = c.club_id " +
-            "  AND e.venue_id = v.venue_id " +
-            "  AND e.start_time BETWEEN TRUNC(SYSDATE) AND TRUNC(SYSDATE) + 7 " +
+            "FROM events e " +
+            "JOIN clubs c ON e.club_id = c.club_id " +
+            "JOIN venues v ON e.venue_id = v.venue_id " +
+            "WHERE e.start_time BETWEEN TRUNC(SYSDATE) AND TRUNC(SYSDATE) + 7 " +
             "ORDER BY e.start_time ASC";
 
-        try (PreparedStatement ps = conn.prepareStatement(sql);
-             ResultSet rs = ps.executeQuery()) {
-
-            List<EventListItem> list = new ArrayList<>();
-            while (rs.next()) {
-                EventListItem item = new EventListItem();
-                item.setEventId(rs.getInt("event_id"));
-                item.setTitle(rs.getString("title"));
-                item.setClubName(rs.getString("club_name"));
-                item.setVenueName(rs.getString("venue_name"));
-                item.setStartTime(rs.getTimestamp("start_time"));
-                item.setCapacity(rs.getInt("capacity"));                       // 🔽 추가
-                item.setCurrentRegistrations(rs.getInt("current_registrations"));
-                list.add(item);
-            }
-            return list;
-        }
-    }
-
-    // 전체 이벤트 목록 (날짜 제한 없음)
-    public List<EventListItem> listAllEvents(Connection conn) throws SQLException {
-        String sql =
-            "SELECT e.event_id, e.title, c.name AS club_name, v.name AS venue_name, " +
-            "       e.start_time, e.capacity, " +
-            "       (SELECT COUNT(*) " +
-            "          FROM registrations r " +
-            "         WHERE r.event_id = e.event_id " +
-            "           AND r.status IN ('PENDING','CONFIRMED')) AS current_registrations " +
-            "FROM events e, clubs c, venues v " +
-            "WHERE e.club_id = c.club_id " +
-            "  AND e.venue_id = v.venue_id " +
-            "ORDER BY e.start_time DESC";
+        List<EventListItem> list = new ArrayList<>();
 
         try (PreparedStatement ps = conn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
 
-            List<EventListItem> list = new ArrayList<>();
             while (rs.next()) {
                 EventListItem item = new EventListItem();
                 item.setEventId(rs.getInt("event_id"));
@@ -308,60 +248,105 @@ public class EventDao {
                 item.setCurrentRegistrations(rs.getInt("current_registrations"));
                 list.add(item);
             }
-            return list;
         }
+        return list;
     }
 
-    // 검색 + 7일 / 전체 토글
+    // =============================
+    // 6. 전체 이벤트 목록 (날짜 제한 없음)
+    // =============================
+    public List<EventListItem> listAllEvents(Connection conn) throws SQLException {
+        String sql =
+            "SELECT e.event_id, e.title, c.name AS club_name, v.name AS venue_name, " +
+            "       e.start_time, e.capacity, " +
+            "       (SELECT COUNT(*) FROM registrations r " +
+            "         WHERE r.event_id = e.event_id " +
+            "           AND r.status IN ('PENDING','CONFIRMED')) AS current_registrations " +
+            "FROM events e " +
+            "JOIN clubs c ON e.club_id = c.club_id " +
+            "JOIN venues v ON e.venue_id = v.venue_id " +
+            "ORDER BY e.start_time DESC";
+
+        List<EventListItem> list = new ArrayList<>();
+
+        try (PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+
+            while (rs.next()) {
+                EventListItem item = new EventListItem();
+                item.setEventId(rs.getInt("event_id"));
+                item.setTitle(rs.getString("title"));
+                item.setClubName(rs.getString("club_name"));
+                item.setVenueName(rs.getString("venue_name"));
+                item.setStartTime(rs.getTimestamp("start_time"));
+                item.setCapacity(rs.getInt("capacity"));
+                item.setCurrentRegistrations(rs.getInt("current_registrations"));
+                list.add(item);
+            }
+        }
+        return list;
+    }
+
+    // =============================
+    // 7. 검색 + 7일 / 전체 통합 메서드
+    //     EventListServlet에서 호출하는 메서드
+    // =============================
     public List<EventListItem> searchEvents(Connection conn, String keyword, boolean showAll)
             throws SQLException {
 
-        StringBuilder sql = new StringBuilder();
-        sql.append("SELECT e.event_id, e.title, ");
-        sql.append("       c.name AS club_name, ");
-        sql.append("       v.name AS venue_name, ");
-        sql.append("       e.start_time ");
-        sql.append("FROM events e ");
-        sql.append("JOIN clubs c ON e.club_id = c.club_id ");
-        sql.append("JOIN venues v ON e.venue_id = v.venue_id ");
+        StringBuilder sb = new StringBuilder();
+        sb.append("SELECT e.event_id, e.title, c.name AS club_name, v.name AS venue_name, ");
+        sb.append("       e.start_time, e.capacity, ");
+        sb.append("       (SELECT COUNT(*) FROM registrations r ");
+        sb.append("         WHERE r.event_id = e.event_id ");
+        sb.append("           AND r.status IN ('PENDING','CONFIRMED')) AS current_registrations ");
+        sb.append("FROM events e ");
+        sb.append("JOIN clubs c ON e.club_id = c.club_id ");
+        sb.append("JOIN venues v ON e.venue_id = v.venue_id ");
+        sb.append("WHERE 1 = 1 ");
 
-        List<String> conditions = new ArrayList<>();
-        List<Object> params = new ArrayList<>();
+        List<String> params = new ArrayList<>();
 
-        // 기간 조건
+        // showAll이 false면 향후 7일만
         if (!showAll) {
-            conditions.add("e.start_time BETWEEN TRUNC(SYSDATE) AND TRUNC(SYSDATE) + 7");
+            sb.append(" AND e.start_time BETWEEN TRUNC(SYSDATE) AND TRUNC(SYSDATE) + 7 ");
         }
 
-        // 검색어 조건 (제목, 클럽명, 장소명)
-        if (keyword != null && !keyword.isBlank()) {
-            String kw = "%" + keyword.toLowerCase() + "%";
-            conditions.add("(" +
-                    "LOWER(e.title) LIKE ? " +
-                    "OR LOWER(c.name) LIKE ? " +
-                    "OR LOWER(v.name) LIKE ?" +
-                    ")");
-            params.add(kw);
-            params.add(kw);
-            params.add(kw);
+        // 키워드 검색 (이벤트명 / 클럽명 / 장소명 / 캠퍼스명)
+        if (keyword != null && !keyword.isEmpty()) {
+            sb.append(" AND (");
+            sb.append("      LOWER(e.title) LIKE ? ");
+            sb.append("   OR LOWER(c.name) LIKE ? ");
+            sb.append("   OR LOWER(v.name) LIKE ? ");
+            // venues에 campus 컬럼 있으면 주석 해제 / 없으면 이 줄 지워도 됨
+            sb.append("   OR LOWER(v.campus) LIKE ? ");
+            sb.append(") ");
+
+            String like = "%" + keyword.toLowerCase() + "%";
+            params.add(like);
+            params.add(like);
+            params.add(like);
+            params.add(like);
         }
 
-        if (!conditions.isEmpty()) {
-            sql.append(" WHERE ");
-            sql.append(String.join(" AND ", conditions));
+        // 정렬: 7일 모드면 오래된 순, 전체 모드는 최신순
+        sb.append(" ORDER BY e.start_time ");
+        if (showAll) {
+            sb.append("DESC");
+        } else {
+            sb.append("ASC");
         }
 
-        sql.append(" ORDER BY e.start_time ");
-        sql.append(showAll ? "DESC" : "ASC");
+        String sql = sb.toString();
 
-        try (PreparedStatement ps = conn.prepareStatement(sql.toString())) {
-            int idx = 1;
-            for (Object p : params) {
-                ps.setObject(idx++, p);
+        List<EventListItem> list = new ArrayList<>();
+
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            for (int i = 0; i < params.size(); i++) {
+                ps.setString(i + 1, params.get(i));
             }
 
             try (ResultSet rs = ps.executeQuery()) {
-                List<EventListItem> list = new ArrayList<>();
                 while (rs.next()) {
                     EventListItem item = new EventListItem();
                     item.setEventId(rs.getInt("event_id"));
@@ -369,22 +354,79 @@ public class EventDao {
                     item.setClubName(rs.getString("club_name"));
                     item.setVenueName(rs.getString("venue_name"));
                     item.setStartTime(rs.getTimestamp("start_time"));
+                    item.setCapacity(rs.getInt("capacity"));
+                    item.setCurrentRegistrations(rs.getInt("current_registrations"));
                     list.add(item);
                 }
-                return list;
+            }
+        }
+
+        return list;
+    }
+
+    // =============================
+    // 8. 이벤트 상세
+    // =============================
+    public EventDetail getEventDetail(Connection conn, int eventId) throws SQLException {
+        String sql =
+            "SELECT e.event_id, e.title, e.summary AS description, e.start_time, e.end_time, " +
+            "       e.capacity, e.fee, e.status, " +
+            "       c.name AS club_name, v.name AS venue_name, " +
+            "       (SELECT COUNT(*) " +
+            "          FROM registrations r " +
+            "         WHERE r.event_id = e.event_id " +
+            "           AND r.status IN ('PENDING','CONFIRMED')) AS current_registrations, " +
+            "       (SELECT AVG(rv.rating) " +
+            "          FROM reviews rv " +
+            "         WHERE rv.event_id = e.event_id " +
+            "           AND rv.status = 'VISIBLE') AS avg_rating, " +
+            "       (SELECT COUNT(*) " +
+            "          FROM reviews rv2 " +
+            "         WHERE rv2.event_id = e.event_id " +
+            "           AND rv2.status = 'VISIBLE') AS review_count " +
+            "FROM events e " +
+            "JOIN clubs c ON e.club_id = c.club_id " +
+            "JOIN venues v ON e.venue_id = v.venue_id " +
+            "WHERE e.event_id = ?";
+
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, eventId);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    EventDetail d = new EventDetail();
+                    d.setEventId(rs.getInt("event_id"));
+                    d.setTitle(rs.getString("title"));
+                    d.setDescription(rs.getString("description"));
+                    d.setStartTime(rs.getTimestamp("start_time"));
+                    d.setEndTime(rs.getTimestamp("end_time"));
+                    d.setCapacity(rs.getInt("capacity"));
+                    d.setFee(rs.getBigDecimal("fee"));
+                    d.setStatus(rs.getString("status"));
+                    d.setClubName(rs.getString("club_name"));
+                    d.setVenueName(rs.getString("venue_name"));
+                    d.setCurrentRegistrations(rs.getInt("current_registrations"));
+
+                    // ✅ 리뷰 집계 매핑
+                    int rc = rs.getInt("review_count");
+                    d.setReviewCount(rc);
+                    if (rc > 0) {
+                        d.setAvgRating(rs.getDouble("avg_rating"));
+                    } else {
+                        d.setAvgRating(null);
+                    }
+
+                    return d;
+                } else {
+                    return null;
+                }
             }
         }
     }
 
-    // ==========================
-    // 5. 이벤트 신청 취소
-    // ==========================
-    /**
-     * 이벤트 신청 취소
-     *  - 현재 로그인한 userId + eventId 기준
-     *  - 상태가 PENDING / CONFIRMED / WAITLISTED 인 것만 CANCELLED 로 변경
-     *  - 결과코드: "CANCELLED", "NO_ACTIVE"
-     */
+    // =============================
+    // 9. 신청 취소
+    // =============================
     public String cancelRegistration(Connection conn, int userId, int eventId) throws SQLException {
         String sql =
             "UPDATE registrations " +
@@ -399,10 +441,162 @@ public class EventDao {
 
             int updated = ps.executeUpdate();
             if (updated == 0) {
-                // 이미 취소되었거나 없는 경우
                 return "NO_ACTIVE";
             }
             return "CANCELLED";
         }
+    }
+
+    // =============================
+    // 10. (선택) 캠퍼스별 7일 내 이벤트
+    // =============================
+    public List<EventListItem> listUpcomingEventsByCampus(Connection conn, String campus) throws SQLException {
+        String sql =
+            "SELECT e.event_id, e.title, c.name AS club_name, v.name AS venue_name, " +
+            "       e.start_time, e.capacity, " +
+            "       (SELECT COUNT(*) FROM registrations r " +
+            "         WHERE r.event_id = e.event_id " +
+            "           AND r.status IN ('PENDING','CONFIRMED')) AS current_registrations " +
+            "FROM events e " +
+            "JOIN clubs c ON e.club_id = c.club_id " +
+            "JOIN venues v ON e.venue_id = v.venue_id " +
+            "WHERE v.campus = ? " +
+            "  AND e.start_time BETWEEN TRUNC(SYSDATE) AND TRUNC(SYSDATE) + 7 " +
+            "ORDER BY e.start_time ASC";
+
+        List<EventListItem> list = new ArrayList<>();
+
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, campus);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    EventListItem item = new EventListItem();
+                    item.setEventId(rs.getInt("event_id"));
+                    item.setTitle(rs.getString("title"));
+                    item.setClubName(rs.getString("club_name"));
+                    item.setVenueName(rs.getString("venue_name"));
+                    item.setStartTime(rs.getTimestamp("start_time"));
+                    item.setCapacity(rs.getInt("capacity"));
+                    item.setCurrentRegistrations(rs.getInt("current_registrations"));
+                    list.add(item);
+                }
+            }
+        }
+        return list;
+    }
+
+    // =============================
+    // 11. 클럽 상세용 이벤트 목록 DTO
+    // =============================
+    public static class ClubEventItem {
+        private int eventId;
+        private String title;
+        private Timestamp startTime;
+        private String status;
+        private Double avgRating;
+        private int reviewCount;
+
+        public int getEventId() { return eventId; }
+        public void setEventId(int eventId) { this.eventId = eventId; }
+
+        public String getTitle() { return title; }
+        public void setTitle(String title) { this.title = title; }
+
+        public Timestamp getStartTime() { return startTime; }
+        public void setStartTime(Timestamp startTime) { this.startTime = startTime; }
+
+        public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
+
+        public Double getAvgRating() { return avgRating; }
+        public void setAvgRating(Double avgRating) { this.avgRating = avgRating; }
+
+        public int getReviewCount() { return reviewCount; }
+        public void setReviewCount(int reviewCount) { this.reviewCount = reviewCount; }
+    }
+
+    // 클럽의 앞으로 열릴 이벤트
+    public List<ClubEventItem> listClubUpcomingEvents(Connection conn, int clubId) throws SQLException {
+        String sql =
+            "SELECT e.event_id, e.title, e.start_time, e.status, " +
+            "       AVG(rv.rating) AS avg_rating, " +
+            "       COUNT(rv.review_id) AS review_count " +
+            "FROM events e " +
+            "LEFT JOIN reviews rv " +
+            "       ON rv.event_id = e.event_id " +
+            "      AND rv.status = 'VISIBLE' " +
+            "WHERE e.club_id = ? " +
+            "  AND e.start_time >= TRUNC(SYSDATE) " +
+            "GROUP BY e.event_id, e.title, e.start_time, e.status " +
+            "ORDER BY e.start_time ASC";
+
+        List<ClubEventItem> list = new ArrayList<>();
+
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, clubId);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    ClubEventItem item = new ClubEventItem();
+                    item.setEventId(rs.getInt("event_id"));
+                    item.setTitle(rs.getString("title"));
+                    item.setStartTime(rs.getTimestamp("start_time"));
+                    item.setStatus(rs.getString("status"));
+
+                    int rc = rs.getInt("review_count");
+                    item.setReviewCount(rc);
+                    if (rc > 0) {
+                        item.setAvgRating(rs.getDouble("avg_rating"));
+                    } else {
+                        item.setAvgRating(null);
+                    }
+                    list.add(item);
+                }
+            }
+        }
+        return list;
+    }
+
+    // 클럽의 과거 이벤트
+    public List<ClubEventItem> listClubPastEvents(Connection conn, int clubId) throws SQLException {
+        String sql =
+            "SELECT e.event_id, e.title, e.start_time, e.status, " +
+            "       AVG(rv.rating) AS avg_rating, " +
+            "       COUNT(rv.review_id) AS review_count " +
+            "FROM events e " +
+            "LEFT JOIN reviews rv " +
+            "       ON rv.event_id = e.event_id " +
+            "      AND rv.status = 'VISIBLE' " +
+            "WHERE e.club_id = ? " +
+            "  AND e.start_time < TRUNC(SYSDATE) " +
+            "GROUP BY e.event_id, e.title, e.start_Time, e.status " +
+            "ORDER BY e.start_time DESC";
+
+        List<ClubEventItem> list = new ArrayList<>();
+
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, clubId);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    ClubEventItem item = new ClubEventItem();
+                    item.setEventId(rs.getInt("event_id"));
+                    item.setTitle(rs.getString("title"));
+                    item.setStartTime(rs.getTimestamp("start_time"));
+                    item.setStatus(rs.getString("status"));
+
+                    int rc = rs.getInt("review_count");
+                    item.setReviewCount(rc);
+                    if (rc > 0) {
+                        item.setAvgRating(rs.getDouble("avg_rating"));
+                    } else {
+                        item.setAvgRating(null);
+                    }
+                    list.add(item);
+                }
+            }
+        }
+        return list;
     }
 }

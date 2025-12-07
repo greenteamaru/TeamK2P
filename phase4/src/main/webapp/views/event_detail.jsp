@@ -2,7 +2,6 @@
 <%@ page import="teamk2p.db.EventDao.EventDetail" %>
 <%@ page import="teamk2p.db.UserDao.LoginUser" %>
 
-
 <%
     // 1) 컨트롤러가 넘겨준 이벤트 상세 객체
     EventDetail ev = (EventDetail) request.getAttribute("detail");
@@ -17,11 +16,26 @@
         return;
     }
 
+    // 남은 자리
     int remaining = ev.getCapacity() - ev.getCurrentRegistrations();
 
-    // 2) 신청 결과 코드 (등록 서블릿에서 세팅)
+    // 신청 결과 코드 (등록 서블릿에서 세팅)
     String regResult = (String) request.getAttribute("regResult");
+
+    // 로그인 사용자 (세션)
     LoginUser loginUser = (LoginUser) session.getAttribute("loginUser");
+
+    // 오늘 기준으로 이벤트가 지났는지 계산
+    java.util.Date now = new java.util.Date();
+    boolean isPast;
+    if (ev.getEndTime() != null) {
+        isPast = ev.getEndTime().before(now);
+    } else {
+        isPast = ev.getStartTime().before(now);
+    }
+
+    // 신청 가능 여부 = 정원 남아 있고 + 아직 안 끝난 이벤트
+    boolean canApply = (remaining > 0) && !isPast;
 %>
 
 <html>
@@ -93,8 +107,26 @@
                 <strong>참가비:</strong>
                 <%= ev.getFee() %>
             </p>
-            <p class="mb-3">
+            <p class="mb-2">
                 <strong>상태:</strong> <%= ev.getStatus() %>
+            </p>
+
+            <p class="mb-2">
+                <strong>이벤트 평점:</strong>
+                <%
+                    Double avg = ev.getAvgRating();
+                    int rc = ev.getReviewCount();
+                    if (avg == null || rc == 0) {
+                %>
+                    아직 등록된 리뷰가 없습니다.
+                <%
+                    } else {
+                %>
+                    <%= String.format("%.1f", avg) %> / 5.0
+                    (<%= rc %>개 리뷰)
+                <%
+                    }
+                %>
             </p>
 
             <hr/>
@@ -105,39 +137,51 @@
             </p>
 
             <%-- 5) 참가 신청 폼  --%>
-			<form action="<%= request.getContextPath() %>/events/register"
-			      method="post"
-			      class="mt-3 border-top pt-3">
-			
-			    <%-- ✅ 이제는 event_id만 넘기면 됨. user_id는 세션에서 가져감 --%>
-			    <input type="hidden" name="event_id" value="<%= ev.getEventId() %>">
-			
-			    <%-- (선택) 현재 로그인 사용자 정보 표시만 해주기 --%>
-			    <%
-			        if (loginUser != null) {
-			    %>
-			        <p class="mb-2 small text-muted">
-			            현재 로그인: <strong><%= loginUser.getName() %></strong>
-			            (&lt;<%= loginUser.getEmail() %>&gt;)
-			        </p>
-			    <%
-			        }
-			    %>
-			
-			    <button type="submit"
-			            class="btn btn-success btn-sm"
-			            <%= remaining <= 0 ? "disabled" : "" %>>
-			        참가 신청
-			    </button>
-			
-			    <% if (remaining <= 0) { %>
-			        <p class="text-danger small mt-2">
-			            정원이 가득 찼습니다. 더 이상 신청할 수 없습니다.
-			        </p>
-			    <% } %>
-			</form>
+            <form action="<%= request.getContextPath() %>/events/register"
+                  method="post"
+                  class="mt-3 border-top pt-3">
+
+                <%-- 이제는 event_id만 넘기면 됨. user_id는 세션에서 가져감 --%>
+                <input type="hidden" name="event_id" value="<%= ev.getEventId() %>">
+
+                <%-- 현재 로그인 사용자 정보 표시만 해주기 --%>
+                <%
+                    if (loginUser != null) {
+                %>
+                    <p class="mb-2 small text-muted">
+                        현재 로그인: <strong><%= loginUser.getName() %></strong>
+                        (&lt;<%= loginUser.getEmail() %>&gt;)
+                    </p>
+                <%
+                    }
+                %>
+
+                <button type="submit"
+                        class="btn btn-success btn-sm"
+                        <%= canApply ? "" : "disabled" %>>
+                    참가 신청
+                </button>
+
+                <%-- 안내 메시지 --%>
+                <%
+                    if (isPast) {
+                %>
+                    <p class="text-warning small mt-2">
+                        이미 종료된 이벤트입니다. 새로운 신청은 불가합니다.
+                    </p>
+                <%
+                    } else if (remaining <= 0) {
+                %>
+                    <p class="text-danger small mt-2">
+                        정원이 가득 찼습니다. 더 이상 신청할 수 없습니다.
+                    </p>
+                <%
+                    }
+                %>
+            </form>
         </div>
     </div>
+
 </div>
 </body>
 </html>

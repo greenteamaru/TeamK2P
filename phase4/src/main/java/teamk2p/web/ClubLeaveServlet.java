@@ -16,12 +16,14 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.util.List;
 
-@WebServlet("/me/clubs")
-public class MyClubsServlet extends HttpServlet {
+@WebServlet("/clubs/leave")
+public class ClubLeaveServlet extends HttpServlet {
 
     @Override
-    protected void doGet(HttpServletRequest req, HttpServletResponse resp)
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
+
+        req.setCharacterEncoding("UTF-8");
 
         // 1) 로그인 체크
         HttpSession session = req.getSession(false);
@@ -34,18 +36,32 @@ public class MyClubsServlet extends HttpServlet {
             return;
         }
 
+        String clubIdParam = req.getParameter("club_id");
+        if (clubIdParam == null || clubIdParam.isBlank()) {
+            resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "club_id 파라미터가 필요합니다.");
+            return;
+        }
+
+        int clubId;
+        try {
+            clubId = Integer.parseInt(clubIdParam);
+        } catch (NumberFormatException e) {
+            resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "club_id 형식이 잘못되었습니다.");
+            return;
+        }
+
         try (Connection conn = DBUtil.getConnection()) {
             ClubDao dao = new ClubDao();
+
+            // 2) 탈퇴 처리
+            String result = dao.leaveClub(conn, loginUser.getUserId(), clubId);
+
+            // 3) 최신 내 클럽 목록 다시 조회
             List<MyClubItem> clubs = dao.listMyClubs(conn, loginUser.getUserId());
             conn.commit();
 
             req.setAttribute("clubs", clubs);
-
-            // 탈퇴 결과 메시지(있으면)
-            String leaveResult = (String) req.getAttribute("leaveResult");
-            if (leaveResult != null) {
-                req.setAttribute("leaveResult", leaveResult);
-            }
+            req.setAttribute("leaveResult", result);
 
             req.getRequestDispatcher("/views/my_clubs.jsp")
                .forward(req, resp);

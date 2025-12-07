@@ -64,6 +64,10 @@ public class ClubDao {
         private Timestamp myJoinedAt;
         private Timestamp myLeftAt;
 
+        // 리뷰 필드
+        private Double avgRating;   // null이면 아직 리뷰 없음
+        private int reviewCount;
+
         public int getClubId() { return clubId; }
         public void setClubId(int clubId) { this.clubId = clubId; }
 
@@ -102,6 +106,12 @@ public class ClubDao {
 
         public Timestamp getMyLeftAt() { return myLeftAt; }
         public void setMyLeftAt(Timestamp myLeftAt) { this.myLeftAt = myLeftAt; }
+
+        public Double getAvgRating() { return avgRating; }
+        public void setAvgRating(Double avgRating) { this.avgRating = avgRating; }
+
+        public int getReviewCount() { return reviewCount; }
+        public void setReviewCount(int reviewCount) { this.reviewCount = reviewCount; }
     }
 
     // =============================
@@ -114,11 +124,8 @@ public class ClubDao {
         private String categoryName;
         private String status;
         private String description;
-        // 현재 ACTIVE 멤버 수
-        private int memberCount;
-        // 지금까지 누적 가입자 수 (정원이 아님)
-        private int totalMembers;
-        // 클럽 생성 시각
+        private int memberCount;   // 현재 ACTIVE 멤버 수
+        private int totalMembers;  // 누적 가입자 수
         private Timestamp createdAt;
 
         public int getClubId() { return clubId; }
@@ -154,10 +161,18 @@ public class ClubDao {
     // =============================
     public List<MyClubItem> listMyClubs(Connection conn, int userId) throws SQLException {
         String sql =
-            "SELECT m.club_id, c.name, c.club_type, m.role, m.status " +
+            "SELECT m.club_id, c.name, c.club_type, m.role, m.status, " +
+            "       c.description, cat.name AS category_name, " +
+            "       NVL(COUNT(m2.membership_id), 0) AS active_members " +
             "FROM memberships m " +
             "JOIN clubs c ON m.club_id = c.club_id " +
+            "JOIN categories cat ON c.category_id = cat.category_id " +
+            "LEFT JOIN memberships m2 " +
+            "       ON m2.club_id = c.club_id " +
+            "      AND m2.status = 'ACTIVE' " +
             "WHERE m.user_id = ? " +
+            "GROUP BY m.club_id, c.name, c.club_type, m.role, m.status, " +
+            "         c.description, cat.name " +
             "ORDER BY c.name";
 
         List<MyClubItem> list = new ArrayList<>();
@@ -173,6 +188,9 @@ public class ClubDao {
                     item.setClubType(rs.getString("club_type"));
                     item.setRole(rs.getString("role"));
                     item.setStatus(rs.getString("status"));
+                    item.setDescription(rs.getString("description"));
+                    item.setCategoryName(rs.getString("category_name"));
+                    item.setMemberCount(rs.getInt("active_members"));
                     list.add(item);
                 }
             }
@@ -310,7 +328,30 @@ public class ClubDao {
     }
 
     // =============================
-    // 8. 클럽 상세 조회
+    // 8. 클럽 탈퇴
+    // =============================
+    public String leaveClub(Connection conn, int userId, int clubId) throws SQLException {
+        String sql =
+            "UPDATE memberships " +
+            "SET status = 'LEFT', left_at = SYSDATE " +
+            "WHERE user_id = ? " +
+            "  AND club_id = ? " +
+            "  AND status = 'ACTIVE'";
+
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, userId);
+            ps.setInt(2, clubId);
+
+            int updated = ps.executeUpdate();
+            if (updated == 0) {
+                return "NO_ACTIVE"; // 이미 탈퇴했거나 가입 안 돼 있음
+            }
+            return "LEFT";
+        }
+    }
+
+    // =============================
+    // 9. 클럽 상세 조회
     // =============================
     public ClubDetail getClubDetail(Connection conn, int clubId, Integer userId) throws SQLException {
 
@@ -318,7 +359,17 @@ public class ClubDao {
             "SELECT c.club_id, c.name, c.club_type, cat.name AS category_name, " +
             "       c.status, c.description, c.created_at, " +
             "       NVL(SUM(CASE WHEN m.status = 'ACTIVE' THEN 1 ELSE 0 END), 0) AS active_members, " +
-            "       NVL(COUNT(m.membership_id), 0) AS total_members " +
+            "       NVL(COUNT(m.membership_id), 0) AS total_members, " +
+            "       (SELECT AVG(r.rating) " +
+            "          FROM events e2 " +
+            "          JOIN reviews r ON r.event_id = e2.event_id " +
+            "         WHERE e2.club_id = c.club_id " +
+            "           AND r.status = 'VISIBLE') AS avg_rating, " +
+            "       (SELECT COUNT(*) " +
+            "          FROM events e3 " +
+            "          JOIN reviews r2 ON r2.event_id = e3.event_id " +
+            "         WHERE e3.club_id = c.club_id " +
+            "           AND r2.status = 'VISIBLE') AS review_count " +
             "FROM clubs c " +
             "JOIN categories cat ON c.category_id = cat.category_id " +
             "LEFT JOIN memberships m " +
@@ -344,6 +395,14 @@ public class ClubDao {
                     detail.setCreatedAt(rs.getTimestamp("created_at"));
                     detail.setActiveMembers(rs.getInt("active_members"));
                     detail.setTotalMembers(rs.getInt("total_members"));
+
+                    int reviewCount = rs.getInt("review_count");
+                    detail.setReviewCount(reviewCount);
+                    if (reviewCount > 0) {
+                        detail.setAvgRating(rs.getDouble("avg_rating"));
+                    } else {
+                        detail.setAvgRating(null);
+                    }
                 }
             }
         }
@@ -352,6 +411,7 @@ public class ClubDao {
             return null;
         }
 
+        // 현재 로그인 사용자의 membership 정보
         if (userId != null) {
             String memSql =
                 "SELECT status, role, joined_at, left_at " +

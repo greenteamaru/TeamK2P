@@ -4,6 +4,8 @@ import teamk2p.db.ClubDao;
 import teamk2p.db.ClubDao.ClubDetail;
 import teamk2p.db.DBUtil;
 import teamk2p.db.UserDao.LoginUser;
+import teamk2p.db.EventDao;
+import teamk2p.db.EventDao.ClubEventItem;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -11,10 +13,10 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
-import jakarta.servlet.RequestDispatcher;
 
 import java.io.IOException;
 import java.sql.Connection;
+import java.util.List;
 
 @WebServlet("/clubs/detail")
 public class ClubDetailServlet extends HttpServlet {
@@ -52,23 +54,32 @@ public class ClubDetailServlet extends HttpServlet {
             ClubDao dao = new ClubDao();
             ClubDetail detail = dao.getClubDetail(conn, clubId, loginUser.getUserId());
 
-            conn.commit();
-
             if (detail == null) {
+                conn.commit();
                 resp.sendError(HttpServletResponse.SC_NOT_FOUND, "해당 클럽을 찾을 수 없습니다.");
                 return;
             }
 
-            req.setAttribute("club", detail);
+            // 클럽의 이벤트 목록 조회
+            EventDao eventDao = new EventDao();
+            List<ClubEventItem> upcomingEvents =
+                    eventDao.listClubUpcomingEvents(conn, clubId);
+            List<ClubEventItem> pastEvents =
+                    eventDao.listClubPastEvents(conn, clubId);
 
-            // 나중에 join/leave 결과를 queryString으로 넘길 수도 있음
-            // 예: /clubs/detail?club_id=1&joinResult=JOINED
+            conn.commit();
+
+            // JSP에서 사용할 속성들
+            req.setAttribute("detail", detail);
+            req.setAttribute("upcomingEvents", upcomingEvents);
+            req.setAttribute("pastEvents", pastEvents);
+
+            // join/leave 결과 표시용 (있으면)
             req.setAttribute("joinResult", req.getParameter("joinResult"));
             req.setAttribute("leaveResult", req.getParameter("leaveResult"));
 
-            RequestDispatcher rd =
-                    req.getRequestDispatcher("/views/club_detail.jsp");
-            rd.forward(req, resp);
+            req.getRequestDispatcher("/views/club_detail.jsp")
+               .forward(req, resp);
 
         } catch (Exception e) {
             e.printStackTrace();
