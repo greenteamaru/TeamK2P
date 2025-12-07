@@ -3,6 +3,7 @@ package teamk2p.web;
 import teamk2p.db.DBUtil;
 import teamk2p.db.EventDao;
 import teamk2p.db.EventDao.EventDetail;
+import teamk2p.db.EventDao.EventReviewItem;
 import teamk2p.db.UserDao.LoginUser;
 
 import jakarta.servlet.ServletException;
@@ -12,9 +13,10 @@ import jakarta.servlet.RequestDispatcher;
 
 import java.io.IOException;
 import java.sql.Connection;
+import java.util.List;
 
-@WebServlet("/events/detail")
-public class EventDetailServlet extends HttpServlet {
+@WebServlet("/events/reviews")
+public class EventReviewsServlet extends HttpServlet {
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -49,23 +51,23 @@ public class EventDetailServlet extends HttpServlet {
         try (Connection conn = DBUtil.getConnection()) {
             EventDao dao = new EventDao();
             EventDetail detail = dao.getEventDetail(conn, eventId);
-            conn.commit();
-
             if (detail == null) {
+                conn.rollback();
                 resp.sendError(HttpServletResponse.SC_NOT_FOUND,
                         "해당 이벤트를 찾을 수 없습니다.");
                 return;
             }
 
-            req.setAttribute("detail", detail);
+            List<EventReviewItem> reviews =
+                    dao.listEventReviews(conn, eventId);
 
-            // 참가신청 / 리뷰작성 / 리뷰삭제 결과
-            req.setAttribute("regResult",           req.getParameter("regResult"));
-            req.setAttribute("reviewResult",        req.getParameter("reviewResult"));
-            req.setAttribute("reviewDeleteResult",  req.getParameter("reviewDelete"));
+            conn.commit();
+
+            req.setAttribute("detail", detail);
+            req.setAttribute("reviews", reviews);
 
             RequestDispatcher rd =
-                    req.getRequestDispatcher("/views/event_detail.jsp");
+                    req.getRequestDispatcher("/views/event_reviews.jsp");
             rd.forward(req, resp);
 
         } catch (Exception e) {

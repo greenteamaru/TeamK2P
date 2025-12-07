@@ -12,22 +12,25 @@ public class UserDao {
         private int userId;
         private String email;
         private String name;
+        private boolean admin;   // 관리자 여부 추가
 
-        public LoginUser(int userId, String email, String name) {
+        public LoginUser(int userId, String email, String name, boolean admin) {
             this.userId = userId;
             this.email = email;
             this.name = name;
+            this.admin = admin;
         }
 
         public int getUserId() { return userId; }
         public String getEmail() { return email; }
         public String getName() { return name; }
+        public boolean isAdmin() { return admin; }
     }
 
     // 이메일 + 비밀번호로 로그인 시도
     public LoginUser login(Connection conn, String email, String password) throws SQLException {
         String sql =
-                "SELECT user_id, email, name " +
+                "SELECT user_id, email, name, is_admin " +
                 "FROM users " +
                 "WHERE email = ? " +
                 "  AND password = ?";
@@ -38,10 +41,14 @@ public class UserDao {
 
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
+                    String isAdminCol = rs.getString("is_admin"); // 'Y'/'N'
+                    boolean isAdmin = "Y".equalsIgnoreCase(isAdminCol);
+
                     return new LoginUser(
                             rs.getInt("user_id"),
                             rs.getString("email"),
-                            rs.getString("name")
+                            rs.getString("name"),
+                            isAdmin
                     );
                 }
             }
@@ -157,4 +164,80 @@ public class UserDao {
             ps.executeUpdate();
         }
     }
+    
+ // 관리자용 간단 회원 DTO
+    public static class AdminUserItem {
+        private int userId;
+        private String name;
+        private String email;
+        private boolean admin;   // is_admin = 'Y'이면 true
+
+        public int getUserId() { return userId; }
+        public void setUserId(int userId) { this.userId = userId; }
+
+        public String getName() { return name; }
+        public void setName(String name) { this.name = name; }
+
+        public String getEmail() { return email; }
+        public void setEmail(String email) { this.email = email; }
+
+        public boolean isAdmin() { return admin; }
+        public void setAdmin(boolean admin) { this.admin = admin; }
+    }
+
+    // Q7-ADMIN_ALL_USERS: 전체 회원 목록
+    public java.util.List<AdminUserItem> listAllUsers(java.sql.Connection conn) throws java.sql.SQLException {
+        String sql =
+            "SELECT user_id, name, email, is_admin " +
+            "FROM users " +
+            "ORDER BY user_id";
+
+        java.util.List<AdminUserItem> list = new java.util.ArrayList<>();
+
+        try (java.sql.PreparedStatement ps = conn.prepareStatement(sql);
+             java.sql.ResultSet rs = ps.executeQuery()) {
+
+            while (rs.next()) {
+                AdminUserItem item = new AdminUserItem();
+                item.setUserId(rs.getInt("user_id"));
+                item.setName(rs.getString("name"));
+                item.setEmail(rs.getString("email"));
+                String isAdmin = rs.getString("is_admin");
+                item.setAdmin("Y".equalsIgnoreCase(isAdmin));
+                list.add(item);
+            }
+        }
+        return list;
+    }
+
+    // Q8-ADMIN_FIND_BY_EMAIL: 이메일 키워드 검색
+    public java.util.List<AdminUserItem> searchUsersByEmail(java.sql.Connection conn, String emailKeyword)
+            throws java.sql.SQLException {
+
+        String sql =
+            "SELECT user_id, name, email, is_admin " +
+            "FROM users " +
+            "WHERE email LIKE ? " +
+            "ORDER BY user_id";
+
+        java.util.List<AdminUserItem> list = new java.util.ArrayList<>();
+
+        try (java.sql.PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, "%" + emailKeyword + "%");
+
+            try (java.sql.ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    AdminUserItem item = new AdminUserItem();
+                    item.setUserId(rs.getInt("user_id"));
+                    item.setName(rs.getString("name"));
+                    item.setEmail(rs.getString("email"));
+                    String isAdmin = rs.getString("is_admin");
+                    item.setAdmin("Y".equalsIgnoreCase(isAdmin));
+                    list.add(item);
+                }
+            }
+        }
+        return list;
+    }
+
 }

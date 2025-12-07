@@ -2,57 +2,48 @@ package teamk2p.web;
 
 import teamk2p.db.DBUtil;
 import teamk2p.db.EventDao;
-import teamk2p.db.EventDao.MyEventItem;
+import teamk2p.db.EventDao.MyReviewItem;
 import teamk2p.db.UserDao.LoginUser;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
-import jakarta.servlet.http.HttpServlet;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
+import jakarta.servlet.http.*;
 import jakarta.servlet.RequestDispatcher;
 
 import java.io.IOException;
 import java.sql.Connection;
 import java.util.List;
 
-@WebServlet("/me/events")
-public class MyEventsServlet extends HttpServlet {
+@WebServlet("/me/reviews")
+public class MyReviewsServlet extends HttpServlet {
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
 
-        String ctx = req.getContextPath();
-
-        // 1) 로그인 체크
         HttpSession session = req.getSession(false);
         LoginUser loginUser = (session == null)
                 ? null
                 : (LoginUser) session.getAttribute("loginUser");
 
         if (loginUser == null) {
-            resp.sendRedirect(ctx + "/login");
+            resp.sendRedirect(req.getContextPath() + "/login");
             return;
         }
 
-        // 2) 취소 결과 코드 (cancel 서블릿에서 redirect로 넘김)
-        String cancelResult = req.getParameter("cancelResult");
+        String deleteResult = req.getParameter("deleteResult");
 
         try (Connection conn = DBUtil.getConnection()) {
-
             EventDao dao = new EventDao();
-            List<MyEventItem> myEvents =
-                    dao.listMyEvents(conn, loginUser.getUserId());
-
+            List<MyReviewItem> reviews =
+                    dao.listMyReviews(conn, loginUser.getUserId());
             conn.commit();
 
-            req.setAttribute("myEvents", myEvents);
-            req.setAttribute("cancelResult", cancelResult);
+            req.setAttribute("reviews", reviews);
+            req.setAttribute("deleteResult", deleteResult);
 
             RequestDispatcher rd =
-                    req.getRequestDispatcher("/views/my_events.jsp");
+                    req.getRequestDispatcher("/views/my_reviews.jsp");
             rd.forward(req, resp);
 
         } catch (Exception e) {

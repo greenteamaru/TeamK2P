@@ -134,7 +134,7 @@ public class EventDao {
         private int currentRegistrations;
         private BigDecimal fee;
         private String status;
-        
+
         // 리뷰,평점 정보
         private Double avgRating;   // null 이면 아직 리뷰 없음
         private int reviewCount;
@@ -171,16 +171,13 @@ public class EventDao {
 
         public String getStatus() { return status; }
         public void setStatus(String status) { this.status = status; }
-        
-        // 평점, 리뷰
+
         public Double getAvgRating() { return avgRating; }
         public void setAvgRating(Double avgRating) { this.avgRating = avgRating; }
 
         public int getReviewCount() { return reviewCount; }
         public void setReviewCount(int reviewCount) { this.reviewCount = reviewCount; }
     }
-    
-    
 
     // =============================
     // 4. 이벤트 목록용 DTO (카드용)
@@ -289,7 +286,6 @@ public class EventDao {
 
     // =============================
     // 7. 검색 + 7일 / 전체 통합 메서드
-    //     EventListServlet에서 호출하는 메서드
     // =============================
     public List<EventListItem> searchEvents(Connection conn, String keyword, boolean showAll)
             throws SQLException {
@@ -307,18 +303,15 @@ public class EventDao {
 
         List<String> params = new ArrayList<>();
 
-        // showAll이 false면 향후 7일만
         if (!showAll) {
             sb.append(" AND e.start_time BETWEEN TRUNC(SYSDATE) AND TRUNC(SYSDATE) + 7 ");
         }
 
-        // 키워드 검색 (이벤트명 / 클럽명 / 장소명 / 캠퍼스명)
         if (keyword != null && !keyword.isEmpty()) {
             sb.append(" AND (");
             sb.append("      LOWER(e.title) LIKE ? ");
             sb.append("   OR LOWER(c.name) LIKE ? ");
             sb.append("   OR LOWER(v.name) LIKE ? ");
-            // venues에 campus 컬럼 있으면 주석 해제 / 없으면 이 줄 지워도 됨
             sb.append("   OR LOWER(v.campus) LIKE ? ");
             sb.append(") ");
 
@@ -329,7 +322,6 @@ public class EventDao {
             params.add(like);
         }
 
-        // 정렬: 7일 모드면 오래된 순, 전체 모드는 최신순
         sb.append(" ORDER BY e.start_time ");
         if (showAll) {
             sb.append("DESC");
@@ -407,7 +399,6 @@ public class EventDao {
                     d.setVenueName(rs.getString("venue_name"));
                     d.setCurrentRegistrations(rs.getInt("current_registrations"));
 
-                    // ✅ 리뷰 집계 매핑
                     int rc = rs.getInt("review_count");
                     d.setReviewCount(rc);
                     if (rc > 0) {
@@ -448,7 +439,7 @@ public class EventDao {
     }
 
     // =============================
-    // 10. (선택) 캠퍼스별 7일 내 이벤트
+    // 10. 캠퍼스별 7일 내 이벤트 (선택)
     // =============================
     public List<EventListItem> listUpcomingEventsByCampus(Connection conn, String campus) throws SQLException {
         String sql =
@@ -570,7 +561,7 @@ public class EventDao {
             "      AND rv.status = 'VISIBLE' " +
             "WHERE e.club_id = ? " +
             "  AND e.start_time < TRUNC(SYSDATE) " +
-            "GROUP BY e.event_id, e.title, e.start_Time, e.status " +
+            "GROUP BY e.event_id, e.title, e.start_time, e.status " +
             "ORDER BY e.start_time DESC";
 
         List<ClubEventItem> list = new ArrayList<>();
@@ -599,4 +590,220 @@ public class EventDao {
         }
         return list;
     }
+
+    // =============================
+    // 12. 내가 쓴 리뷰 목록용 DTO
+    // =============================
+    public static class MyReviewItem {
+        private int reviewId;
+        private int eventId;
+        private String eventTitle;
+        private int rating;
+        private String reviewText;
+        private java.sql.Timestamp createdAt;
+        private String status;
+
+        public int getReviewId() { return reviewId; }
+        public void setReviewId(int reviewId) { this.reviewId = reviewId; }
+
+        public int getEventId() { return eventId; }
+        public void setEventId(int eventId) { this.eventId = eventId; }
+
+        public String getEventTitle() { return eventTitle; }
+        public void setEventTitle(String eventTitle) { this.eventTitle = eventTitle; }
+
+        public int getRating() { return rating; }
+        public void setRating(int rating) { this.rating = rating; }
+
+        public String getReviewText() { return reviewText; }
+        public void setReviewText(String reviewText) { this.reviewText = reviewText; }
+
+        public java.sql.Timestamp getCreatedAt() { return createdAt; }
+        public void setCreatedAt(java.sql.Timestamp createdAt) { this.createdAt = createdAt; }
+
+        public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
+    }
+
+    // MY_REVIEWS: 내가 쓴 리뷰 목록
+    public java.util.List<MyReviewItem> listMyReviews(Connection conn, int userId) throws SQLException {
+        String sql =
+            "SELECT r.review_id, r.event_id, e.title, " +
+            "       r.rating, r.review_text, " +
+            "       r.created_at, r.status " +
+            "FROM reviews r " +
+            "JOIN events e ON r.event_id = e.event_id " +
+            "WHERE r.user_id = ? " +
+            "ORDER BY r.created_at DESC";
+
+        java.util.List<MyReviewItem> list = new java.util.ArrayList<>();
+
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, userId);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    MyReviewItem item = new MyReviewItem();
+                    item.setReviewId(rs.getInt("review_id"));
+                    item.setEventId(rs.getInt("event_id"));
+                    item.setEventTitle(rs.getString("title"));
+                    item.setRating(rs.getInt("rating"));
+                    item.setReviewText(rs.getString("review_text"));
+                    item.setCreatedAt(rs.getTimestamp("created_at"));
+                    item.setStatus(rs.getString("status"));
+                    list.add(item);
+                }
+            }
+        }
+        return list;
+    }
+
+    // =============================
+    // 13. 리뷰 작성/수정 (Q24 + Q25 upsert)
+    // =============================
+    /**
+     * 리뷰 작성 또는 수정.
+     * - (user_id, event_id) 에 기존 리뷰가 없으면 INSERT
+     * - 있으면 UPDATE
+     *
+     * @return "INSERTED" 또는 "UPDATED"
+     */
+    public String writeOrUpdateReview(Connection conn,
+                                      int userId,
+                                      int eventId,
+                                      int rating,
+                                      String reviewText) throws SQLException {
+        // rating 범위 보정 (1~5)
+        if (rating < 1) rating = 1;
+        if (rating > 5) rating = 5;
+
+        String sql =
+        	    "INSERT INTO reviews (user_id, event_id, rating, review_text, created_at, status) " +
+        	    "VALUES (?, ?, ?, ?, SYSDATE, 'VISIBLE')";
+
+        	try (PreparedStatement ps = conn.prepareStatement(sql)) {
+        	    ps.setInt(1, userId);    // ✅ user_id 먼저
+        	    ps.setInt(2, eventId);   // ✅ event_id 두 번째
+        	    ps.setInt(3, rating);
+        	    ps.setString(4, reviewText);
+        	    ps.executeUpdate();
+        	    return "INSERTED";
+        	} catch (SQLException e) {
+        	    if (e.getErrorCode() == 1) { // ORA-00001
+        	        String updateSql =
+        	            "UPDATE reviews " +
+        	            "SET rating = ?, review_text = ?, updated_at = SYSDATE " +
+        	            "WHERE event_id = ? AND user_id = ?";
+
+        	        try (PreparedStatement ups = conn.prepareStatement(updateSql)) {
+        	            ups.setInt(1, rating);
+        	            ups.setString(2, reviewText);
+        	            ups.setInt(3, eventId);
+        	            ups.setInt(4, userId);
+        	            int updated = ups.executeUpdate();
+        	            if (updated > 0) {
+        	                return "UPDATED";
+        	            } else {
+        	                throw e;
+        	            }
+        	        }
+        	    } else {
+        	        throw e;
+    	    }
+    	}
+	}
+
+    // =============================
+    // 14. 리뷰 삭제 (Q26)
+    // =============================
+    /**
+     * 현재 user 가 해당 event 에 남긴 리뷰 삭제.
+     *
+     * @return "DELETED" 혹은 "NO_REVIEW"
+     */
+    public String deleteMyReview(Connection conn, int userId, int eventId) throws SQLException {
+        String sql =
+            "DELETE FROM reviews " +
+            "WHERE user_id = ? " +
+            "  AND event_id = ?";
+
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, userId);
+            ps.setInt(2, eventId);
+
+            int deleted = ps.executeUpdate();
+            if (deleted == 0) {
+                return "NO_REVIEW";
+            }
+            return "DELETED";
+        }
+    }
+    
+    // =============================
+    // X. 이벤트별 전체 리뷰 DTO
+    // =============================
+    public static class EventReviewItem {
+        private int reviewId;
+        private int userId;
+        private String userName;
+        private int rating;
+        private String reviewText;
+        private java.sql.Timestamp createdAt;
+        private String status;
+
+        public int getReviewId() { return reviewId; }
+        public void setReviewId(int reviewId) { this.reviewId = reviewId; }
+
+        public int getUserId() { return userId; }
+        public void setUserId(int userId) { this.userId = userId; }
+
+        public String getUserName() { return userName; }
+        public void setUserName(String userName) { this.userName = userName; }
+
+        public int getRating() { return rating; }
+        public void setRating(int rating) { this.rating = rating; }
+
+        public String getReviewText() { return reviewText; }
+        public void setReviewText(String reviewText) { this.reviewText = reviewText; }
+
+        public java.sql.Timestamp getCreatedAt() { return createdAt; }
+        public void setCreatedAt(java.sql.Timestamp createdAt) { this.createdAt = createdAt; }
+
+        public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
+    }
+
+    // 이벤트 한 개의 전체 리뷰 목록
+    public java.util.List<EventReviewItem> listEventReviews(Connection conn, int eventId) throws SQLException {
+        String sql =
+            "SELECT r.review_id, r.user_id, u.name AS user_name, " +
+            "       r.rating, r.review_text, r.created_at, r.status " +
+            "FROM reviews r " +
+            "JOIN users u ON r.user_id = u.user_id " +
+            "WHERE r.event_id = ? " +
+            "  AND r.status = 'VISIBLE' " +
+            "ORDER BY r.created_at DESC";
+
+        java.util.List<EventReviewItem> list = new java.util.ArrayList<>();
+
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, eventId);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    EventReviewItem item = new EventReviewItem();
+                    item.setReviewId(rs.getInt("review_id"));
+                    item.setUserId(rs.getInt("user_id"));
+                    item.setUserName(rs.getString("user_name"));
+                    item.setRating(rs.getInt("rating"));
+                    item.setReviewText(rs.getString("review_text"));
+                    item.setCreatedAt(rs.getTimestamp("created_at"));
+                    item.setStatus(rs.getString("status"));
+                    list.add(item);
+                }
+            }
+        }
+        return list;
+    }
+
 }

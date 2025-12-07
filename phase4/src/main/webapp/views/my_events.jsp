@@ -4,16 +4,17 @@
 
 <%
     String ctx = request.getContextPath();
-    List<MyEventItem> events =
-        (List<MyEventItem>) request.getAttribute("events");
-    String cancelResult =
-        (String) request.getAttribute("cancelResult");
+    List<MyEventItem> myEvents =
+        (List<MyEventItem>) request.getAttribute("myEvents");
+    String cancelResult = (String) request.getAttribute("cancelResult");
+
+    java.util.Date now = new java.util.Date();
 %>
 
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>내 이벤트 - Campus Club Event Portal</title>
+    <title>내 이벤트</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
           rel="stylesheet">
 </head>
@@ -36,7 +37,7 @@
         <%
             } else if ("NO_ACTIVE".equals(cancelResult)) {
         %>
-            취소할 수 있는 활성 신청이 없습니다.
+            취소할 수 있는 신청 상태가 아닙니다.
         <%
             } else {
         %>
@@ -50,7 +51,7 @@
     %>
 
     <%
-        if (events == null || events.isEmpty()) {
+        if (myEvents == null || myEvents.isEmpty()) {
     %>
         <p class="text-muted">신청한 이벤트가 없습니다.</p>
     <%
@@ -61,51 +62,81 @@
             <thead class="table-light">
             <tr>
                 <th>제목</th>
-                <th>일시</th>
+                <th>시작 시간</th>
                 <th>장소</th>
                 <th>신청 상태</th>
                 <th>참석 여부</th>
-                <th style="width: 160px;">액션</th>
+                <th>신청 취소</th>
             </tr>
             </thead>
             <tbody>
             <%
-                for (MyEventItem e : events) {
+                for (MyEventItem e : myEvents) {
+
+                    boolean isPast = false;
+                    if (e.getStartTime() != null) {
+                        isPast = e.getStartTime().before(now);
+                    }
+
+                    String s = (e.getStatus() == null) ? "" : e.getStatus().toUpperCase();
+                    boolean cancellable =
+                        !isPast &&
+                        ("PENDING".equals(s) ||
+                         "CONFIRMED".equals(s) ||
+                         "WAITLISTED".equals(s));
             %>
             <tr>
-                <td><%= e.getTitle() %></td>
+                <td>
+                    <a href="<%= ctx %>/events/detail?event_id=<%= e.getEventId() %>">
+                        <%= e.getTitle() %>
+                    </a>
+                </td>
                 <td><%= e.getStartTime() %></td>
                 <td><%= e.getVenueName() %></td>
                 <td><%= e.getStatus() %></td>
-                <td><%= e.getAttended() %></td>
                 <td>
-                    <div class="d-flex gap-2">
-                        <a class="btn btn-sm btn-outline-primary"
-                           href="<%= ctx %>/events/detail?event_id=<%= e.getEventId() %>">
-                            상세보기
-                        </a>
-
-                        <form method="post"
-                              action="<%= ctx %>/events/cancel"
-                              onsubmit="return confirm('이 신청을 취소하시겠습니까?');">
-                            <input type="hidden" name="event_id"
-                                   value="<%= e.getEventId() %>">
-                            <button type="submit"
-                                    class="btn btn-sm btn-outline-danger">
-                                취소
-                            </button>
-                        </form>
-                    </div>
+                    <%
+                        if ("Y".equalsIgnoreCase(e.getAttended())) {
+                    %>
+                        참석
+                    <%
+                        } else {
+                    %>
+                        -
+                    <%
+                        }
+                    %>
+                </td>
+                <td>
+                    <form action="<%= ctx %>/events/cancel" method="post" class="d-inline">
+                        <input type="hidden" name="event_id" value="<%= e.getEventId() %>">
+                        <button type="submit"
+                                class="btn btn-sm btn-outline-danger"
+                                <%= cancellable ? "" : "disabled" %>>
+                            취소
+                        </button>
+                    </form>
+                    <%
+                        if (isPast) {
+                    %>
+                        <span class="small text-muted ms-1">종료됨</span>
+                    <%
+                        } else if (!cancellable) {
+                    %>
+                        <span class="small text-muted ms-1">취소 완료</span>
+                    <%
+                        }
+                    %>
                 </td>
             </tr>
             <%
-                }
+                } // for
             %>
             </tbody>
         </table>
     </div>
     <%
-        }
+        } // else
     %>
 
 </div>

@@ -60,6 +60,21 @@
                                 내 클럽
                             </a>
                         </li>
+                        <li>
+                        	<a class="dropdown-item" href="<%= request.getContextPath() %>/me/reviews">
+                        		내 리뷰
+                        	</a>
+                        </li>
+                        
+                        <% if (loginUser.isAdmin()) { %>
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <a class="dropdown-item" href="<%= request.getContextPath() %>/admin/users">
+                                관리자: 회원 관리
+                            </a>
+                        </li>
+                        <% } %>
+                        
                         <li><hr class="dropdown-divider"></li>
                         <li>
                             <a class="dropdown-item" href="<%= request.getContextPath() %>/logout">

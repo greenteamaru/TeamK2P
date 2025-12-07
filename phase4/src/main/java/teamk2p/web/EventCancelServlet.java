@@ -22,22 +22,23 @@ public class EventCancelServlet extends HttpServlet {
             throws ServletException, IOException {
 
         req.setCharacterEncoding("UTF-8");
+        String ctx = req.getContextPath();
 
-        // 1) 로그인 확인
+        // 1) 로그인 체크
         HttpSession session = req.getSession(false);
         LoginUser loginUser = (session == null)
                 ? null
                 : (LoginUser) session.getAttribute("loginUser");
 
         if (loginUser == null) {
-            resp.sendRedirect(req.getContextPath() + "/login");
+            resp.sendRedirect(ctx + "/login");
             return;
         }
 
+        // 2) event_id 파라미터
         String eventIdParam = req.getParameter("event_id");
-        if (eventIdParam == null || eventIdParam.isBlank()) {
-            resp.sendError(HttpServletResponse.SC_BAD_REQUEST,
-                    "event_id 파라미터가 필요합니다.");
+        if (eventIdParam == null) {
+            resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "event_id 파라미터가 필요합니다.");
             return;
         }
 
@@ -45,33 +46,25 @@ public class EventCancelServlet extends HttpServlet {
         try {
             eventId = Integer.parseInt(eventIdParam);
         } catch (NumberFormatException e) {
-            resp.sendError(HttpServletResponse.SC_BAD_REQUEST,
-                    "event_id 형식이 잘못되었습니다.");
+            resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "event_id 형식이 올바르지 않습니다.");
             return;
         }
 
+        String resultCode = "ERROR";
+
         try (Connection conn = DBUtil.getConnection()) {
+
             EventDao dao = new EventDao();
+            resultCode = dao.cancelRegistration(conn, loginUser.getUserId(), eventId);
 
-            // 2) 취소 수행
-            String result =
-                    dao.cancelRegistration(conn, loginUser.getUserId(), eventId);
-
-            // 3) 내 이벤트 목록 다시 조회
-            var list = dao.listMyEvents(conn, loginUser.getUserId());
             conn.commit();
-
-            req.setAttribute("events", list);
-            req.setAttribute("cancelResult", result);
-
-            // 같은 화면(my_events.jsp)으로 forward
-            req.getRequestDispatcher("/views/my_events.jsp")
-               .forward(req, resp);
 
         } catch (Exception e) {
             e.printStackTrace();
-            resp.setContentType("text/plain; charset=UTF-8");
-            resp.getWriter().println("Error: " + e.getMessage());
+            // resultCode = "ERROR" 유지
         }
+
+        // 결과 코드와 함께 내 이벤트 페이지로 리다이렉트
+        resp.sendRedirect(ctx + "/me/events?cancelResult=" + resultCode);
     }
 }
